@@ -399,8 +399,7 @@ createReport_mzTab = function(mzTab_file, yaml_obj = list(), report_filenames = 
   {
     ## protein.names is only available from MQ 1.4 onwards
     df_evd = mzTabReader$get_df_evd(add_fs_col)
-    
-    
+
    ' = mq$readMQ(txt_files$evd, type="ev", filter="R",
                        col_subset=c("proteins",
                                     numeric = "Retention.Length",
@@ -473,7 +472,7 @@ createReport_mzTab = function(mzTab_file, yaml_obj = list(), report_filenames = 
     ## Even if MBR=off, this column always contains numbers (usually 0, or very small)
     ##
     
-    
+    browser("MBR?")
     if (("retention.time.calibration" %in% colnames(df_evd)))
     {
       ## this should enable us to decide if MBR was used (we could also look up parameters.txt -- if present)
@@ -492,7 +491,7 @@ createReport_mzTab = function(mzTab_file, yaml_obj = list(), report_filenames = 
         #debug (restore data): lst_qcMetrics[["qcMetric_EVD_RTPeakWidth"]]$setData(df_evd)
         avg_peak_width = lst_qcMetrics[["qcMetric_EVD_RTPeakWidth"]]$outData[["avg_peak_width"]]
         if (is.null(avg_peak_width)) {
-          stop("RT peak width module did not run, but is required for MBR metrics. Enable it and try again or switch off MBR metrics!")
+          warning("RT peak width module did not run, but is required for MBR metrics. Enable it and try again or switch off MBR metrics!")
         } 
         lst_qcMetrics[["qcMetric_EVD_MBRIdTransfer"]]$setData(df_evd, avg_peak_width)
         

@@ -6,7 +6,7 @@
 #' @export
 #'
 
-read.mzTab <- function(file){
+read.MzTab <- function(file){
   mztab <- mzTab$new()
   mztab$read.mzTab(file)
 }
@@ -19,6 +19,7 @@ read.mzTab <- function(file){
 #'        metadata_from_file.mzTab <- foo$MTD 
 #'        
 #' @import methods 
+#' @importFrom rowr cbind.fill
 #' @importFrom plyr rename
 #' @exportClass mzTab
 #' 
@@ -52,6 +53,7 @@ mzTab = setRefClass("mzTab",
                         cn <- paste0("c", 1:nr)
                         data <- read.table(file=file, col.names = cn , sep="\t", fill=TRUE, na.strings=c("null","NA", ""), stringsAsFactors = FALSE)
                         
+                        .self$ALL <- data
                         .self$MTD <- data[which(data[,1]=="MTD"),]
                         
                         .self$PRT <- data[which(data[,1]=="PRT"),]
@@ -92,7 +94,34 @@ mzTab$methods(
   get_df_evd = function(.self, add_fs_col) {
     # the base for the df_evd is the PSM section of the mzTab file
     # or rbind(.self$PSM, .self$PRT etc.)
-    df_evd <- .self$PSM
+    
+    #create df with number of rows = number of rows fom mzTab 
+    df_evd <- data.frame()
+    
+    # add columns:
+          # "sequence" = "modified.sequence",
+          # "accession" = "proteins",
+          # "PSM_ID" = "id",
+          # "raw_source_file" = "raw.file",
+          # "exp_mass_to_charge" = "m.z",
+          # "retention_time" = "retention.time",
+          # "search_engine_score[1]" = "score",
+          # "opt_Match_Time_Difference" = "match.time.difference",
+          # "retention_time_window" = "retention.length"
+
+    if("sequence" %in% colnames(.self$PSM)){
+      df_evd <- cbind.fill(df_evd, .self$PSM, fill = NA)
+      }else if ("sequence" %in% colnames(.self$PEP)) {
+        df_evd <- cbind.fill(df_evd, .self$PEP, fill = NA)
+      }
+
+    #iff match.time.difference column isn't present in df_evd:
+    #add match.time.difference column filled with NA
+    
+    if (!("match.time.difference" %in% colnames(df_evd))) {
+      df_evd[ ,"match.time.difference"] <- NA 
+    }
+    
     # # helper function
     # pasteUnique <- function(vector) {
     #   return(paste(unique(vector), collapse = ";"))
@@ -122,53 +151,75 @@ mzTab$methods(
     
     #### rename the columns (column names determined by metric functions) -------------------------
     #Mapping anpassen! spectraref != raw.file, raw_source_file soll final zu opt_raw_source_file
-    df_evd <-
-      rename(df_evd,
-        c(
-          "sequence" = "modified.sequence",
-          "accession" = "proteins",
-          "PSM_ID" = "id",
-          "raw_source_file" = "raw.file",
-          "exp_mass_to_charge" = "m.z",
-          "retention_time" = "retention.time",
-          "search_engine_score[1]" = "score",
-          "opt_Match_Time_Difference" = "match.time.difference",
-          "retention_time_window" = "retention.length"
-        )
-      )
+     df_evd <- 
+       rename(df_evd,
+         c(
+           "sequence" = "modified.sequence",
+           "accession" = "proteins",
+            #"PSM_ID" = "id",
+           "raw_source_file" = "raw.file",
+           "exp_mass_to_charge" = "m.z",
+           "retention_time" = "calibrated.retention.time",
+           "original_retention_time" = "retention.time",
+           "search_engine_score[1]" = "score",
+           "opt_Match_Time_Difference" = "match.time.difference",
+           "retention_time_window" = "retention.length",
+           "opt_abundance1" = "intensity",
+           "unique_id" = "id"
+         )
+       )
     
     #### set datatypes for cloumns ------------------------
-    
-    try(df_evd$retention.time <-as.numeric(df_evd$retention.time))
-    try(df_evd$id <-as.numeric(df_evd$id))
-    try(df_evd$m.z <-as.numeric(df_evd$m.z))
-    try(df_evd$charge <-as.numeric(df_evd$charge))
-    try(df_evd$score <-as.numeric(df_evd$score))
-    try(df_evd$match.time.difference <-as.numeric(df_evd$match.time.difference))
-    try(df_evd$retention.length <-as.numeric(df_evd$retention.length))
-    
+     
+     #possible values for opt_is_contaminent from PEP section: "+, -" -> PTXQC needs bool
+     
+     if("opt_isContaminent" %in% colnames(df_evd)){
+     df_evd$opt_isContaminant = sapply(
+       X = df_evd$opt_isContaminant,
+       FUN = function(x){
+         if(x=="+"){x = TRUE}
+         else if(x=="-"){x = FALSE}
+         else{x = NA}
+         },
+       USE.NAMES = TRUE
+       )
+     }
+     
+     try(df_evd$retention.time <-as.numeric(df_evd$retention.time))
+     try(df_evd$calibrated.retention.time <-as.numeric(df_evd$calibrated.retention.time))
+     try(df_evd$id <-as.numeric(df_evd$id))
+     try(df_evd$m.z <-as.numeric(df_evd$m.z))
+     try(df_evd$charge <-as.numeric(df_evd$charge))
+     try(df_evd$score <-as.numeric(df_evd$score))
+     try(df_evd$match.time.difference <-as.numeric(df_evd$match.time.difference))
+     try(df_evd$retention.length <-as.numeric(df_evd$retention.length))
+     try(df_evd$intensity <-as.numeric(df_evd$intensity))
+
     #### add "extra" columns needed for the evd metrics but not immediate present in the mzTabfile -----------
     
-    if ("proteins" %in% colnames(df_evd))
-    {
-      # protein name info is extracted from the PRT section of the mzTab file
-      protein.names = sapply(
-        X = .self$PSM$accession,
-        FUN = function(accession) {
-          return(.self$PRT$description[which(.self$PRT$accession == accession)[1]])
-        },
-        USE.NAMES = TRUE
-      )
-      # map protein names onto df_evd
-      df_evd$protein.names = sapply(
-        X = df_evd$proteins,
-        FUN = function(protein) {
-          paste0(protein.names[unlist(strsplit(protein, ";"))], collapse = ";")
-        },
-        USE.NAMES = FALSE
-      )
-      rm(protein.names)
-    }
+    #Die in openMS generierten mzTab verwenden die Protein description als accession
+    #daher ist das mapping vorerst nicht möglich/nötig
+     
+    # if ("proteins" %in% colnames(df_evd))
+    # {
+    #   # protein name info is extracted from the PRT section of the mzTab file
+    #   protein.names = sapply(
+    #     X = .self$PSM$accession,
+    #     FUN = function(accession) {
+    #       return(.self$PRT$description[which(.self$PRT$accession == accession)[1]])
+    #     },
+    #     USE.NAMES = TRUE
+    #   )
+    #   # map protein names onto df_evd
+    #   df_evd$protein.names = sapply(
+    #     X = df_evd$proteins,
+    #     FUN = function(protein) {
+    #       paste0(protein.names[unlist(strsplit(protein, ";"))], collapse = ";")
+    #     },
+    #     USE.NAMES = FALSE
+    #   )
+    #   rm(protein.names)
+    # }
     
     if (all(c("charge", "m.z") %in% colnames(df_evd)))
     {
@@ -191,7 +242,9 @@ mzTab$methods(
     ##### Gehacke ################################################
     #für mbrAlign mzTab, da in jeder Zeile ein charge gegeben ist. -> createReport() bricht bei qualUniform()
     df_evd <- subset(df_evd,!(is.na(df_evd["retention.time"])))
-    
+    df_evd[,"type"]<- "MULTI-MATCH"
+    df_evd[,"retention.time.calibration"] <- df_evd$retention.time - df_evd$calibrated.retention.time
+    #retention.time und len darf nicht NA sein -> if is.na(all(PEP$retention...)) -> rename columns
     return(df_evd)
   }
 )
