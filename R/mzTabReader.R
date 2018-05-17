@@ -51,7 +51,8 @@ mzTab = setRefClass("mzTab",
                         #get max number of columns
                         nr <- max(count.fields(file, sep = "\t", quote = "'"))
                         cn <- paste0("c", 1:nr)
-                        data <- read.table(file=file, col.names = cn , sep="\t", fill=TRUE, na.strings=c("null","NA", ""), stringsAsFactors = FALSE)
+                        data <- read.table(file=file, col.names = cn , sep="\t", fill=TRUE, na.strings=c("null","NA", ""), 
+                                           stringsAsFactors = FALSE, as.is = TRUE)
                         
                         .self$ALL <- data
                         .self$MTD <- data[which(data[,1]=="MTD"),]
@@ -92,36 +93,20 @@ mzTab = setRefClass("mzTab",
 
 mzTab$methods(
   get_df_evd = function(.self, add_fs_col) {
-    # the base for the df_evd is the PSM section of the mzTab file
-    # or rbind(.self$PSM, .self$PRT etc.)
-    
-    #create df with number of rows = number of rows fom mzTab 
-    df_evd <- data.frame()
-    
-    # add columns:
-          # "sequence" = "modified.sequence",
-          # "accession" = "proteins",
-          # "PSM_ID" = "id",
-          # "raw_source_file" = "raw.file",
-          # "exp_mass_to_charge" = "m.z",
-          # "retention_time" = "retention.time",
-          # "search_engine_score[1]" = "score",
-          # "opt_Match_Time_Difference" = "match.time.difference",
-          # "retention_time_window" = "retention.length"
 
-    if("sequence" %in% colnames(.self$PSM)){
-      df_evd <- cbind.fill(df_evd, .self$PSM, fill = NA)
-      }else if ("sequence" %in% colnames(.self$PEP)) {
-        df_evd <- cbind.fill(df_evd, .self$PEP, fill = NA)
+    # the base for the df_evd is the PSM section of the mzTab file, some of the Metrics still only write data to the PEP section
+    # => if PSM section is empty use PEP section for df_evd
+
+      if(!empty(.self$PSM)){
+        df_evd <- .self$PSM
+      }else if(!empty(.self$PEP)){
+        df_evd <- .self$PEP
+      }else{
+        stop()
       }
-
-    #iff match.time.difference column isn't present in df_evd:
-    #add match.time.difference column filled with NA
     
-    if (!("match.time.difference" %in% colnames(df_evd))) {
-      df_evd[ ,"match.time.difference"] <- NA 
-    }
-    
+    # code only needed if PSM_ID is present, however the mzTabs created from the TOPP Tools dont have a PSM_ID sofar 
+    # the unique id could be used for that
     # # helper function
     # pasteUnique <- function(vector) {
     #   return(paste(unique(vector), collapse = ";"))
@@ -150,54 +135,59 @@ mzTab$methods(
     #}
     
     #### rename the columns (column names determined by metric functions) -------------------------
-    #Mapping anpassen! spectraref != raw.file, raw_source_file soll final zu opt_raw_source_file
      df_evd <- 
        rename(df_evd,
          c(
            "sequence" = "modified.sequence",
-           "accession" = "proteins",
-            #"PSM_ID" = "id",
-           "raw_source_file" = "raw.file",
+            #"accession" = "proteins",
+           "opt_rawfiles" = "raw.file",
+           "opt_raw_source_file" = "raw.file",
            "exp_mass_to_charge" = "m.z",
            "retention_time" = "calibrated.retention.time",
-           "original_retention_time" = "retention.time",
-           "search_engine_score[1]" = "score",
+           "opt_original_retention_time" = "retention.time",
            "opt_Match_Time_Difference" = "match.time.difference",
-           "retention_time_window" = "retention.length",
-           "opt_abundance1" = "intensity",
-           "unique_id" = "id"
+           "opt_retention_length" = "retention.length",
+           "opt_intensity" = "intensity",
+           "opt_unique_id" = "id",
+           "opt_isContaminant" = "contaminant",
+           # ist zur Zeit ein Mix aus protein id, protein name und manchmal auch accession
+           "opt_ProteinName" = "proteins"
          )
        )
+    
+    #remove columns with no sequence info
+    df_evd <- df_evd[which(!is.na(df_evd$modified.sequence)),]  
+    
     
     #### set datatypes for cloumns ------------------------
      
      #possible values for opt_is_contaminent from PEP section: "+, -" -> PTXQC needs bool
      
-     if("opt_isContaminent" %in% colnames(df_evd)){
-     df_evd$opt_isContaminant = sapply(
-       X = df_evd$opt_isContaminant,
+     if("contaminant" %in% colnames(df_evd)){
+     df_evd$contaminant = sapply(
+       X = df_evd$contaminant,
        FUN = function(x){
-         if(x=="+"){x = TRUE}
-         else if(x=="-"){x = FALSE}
+         if(x=="+"){return(TRUE)}
+         else if(x=="-"){return(FALSE)}
          else{x = NA}
          },
-       USE.NAMES = TRUE
+       USE.NAMES = FALSE
        )
      }
-     
-     try(df_evd$retention.time <-as.numeric(df_evd$retention.time))
-     try(df_evd$calibrated.retention.time <-as.numeric(df_evd$calibrated.retention.time))
-     try(df_evd$id <-as.numeric(df_evd$id))
-     try(df_evd$m.z <-as.numeric(df_evd$m.z))
-     try(df_evd$charge <-as.numeric(df_evd$charge))
-     try(df_evd$score <-as.numeric(df_evd$score))
-     try(df_evd$match.time.difference <-as.numeric(df_evd$match.time.difference))
-     try(df_evd$retention.length <-as.numeric(df_evd$retention.length))
-     try(df_evd$intensity <-as.numeric(df_evd$intensity))
+    
+
+     if("retention.time" %in% colnames(df_evd)) df_evd$retention.time <-as.numeric(df_evd$retention.time)
+     if("calibrated.retention.time" %in% colnames(df_evd)) df_evd$calibrated.retention.time <-as.numeric(df_evd$calibrated.retention.time)
+     if("id" %in% colnames(df_evd)) df_evd$id <-as.numeric(df_evd$id)
+     if("m.z" %in% colnames(df_evd)) df_evd$m.z <-as.numeric(df_evd$m.z)
+     if("charge" %in% colnames(df_evd)) df_evd$charge <-as.numeric(df_evd$charge)
+     if("match.time.difference" %in% colnames(df_evd)) df_evd$match.time.difference <-as.numeric(df_evd$match.time.difference)
+     if("retention.length" %in% colnames(df_evd)) df_evd$retention.length <-as.numeric(df_evd$retention.length)
+     if("intensity" %in% colnames(df_evd)) df_evd$intensity <-as.numeric(df_evd$intensity)
 
     #### add "extra" columns needed for the evd metrics but not immediate present in the mzTabfile -----------
     
-    #Die in openMS generierten mzTab verwenden die Protein description als accession
+    #Die in openMS generierten mzTab verwenden accession im Moment nicht (accession info ist nicht bei allen Proteinen vorhanden)
     #daher ist das mapping vorerst nicht möglich/nötig
      
     # if ("proteins" %in% colnames(df_evd))
@@ -234,20 +224,32 @@ mzTab$methods(
       # # test cases had file names with characters that cause proplems with regular expressions (e.g. [,(...)
       # df_evd$raw.file =  gsub(pattern = "\\[",replacement = " ",x = df_evd$raw.file)
       # df_evd$raw.file =  gsub(pattern = "\\]",replacement = " ",x = df_evd$raw.file)
-      #
       df_evd$fc.raw.file = .self$get_file_mapping(add_fs_col,df_evd,.self)
-      
     }
     
-    ##### Gehacke ################################################
-    #für mbrAlign mzTab, da in jeder Zeile ein charge gegeben ist. -> createReport() bricht bei qualUniform()
-    df_evd <- subset(df_evd,!(is.na(df_evd["retention.time"])))
-    df_evd[,"type"]<- "MULTI-MATCH"
-    df_evd[,"retention.time.calibration"] <- df_evd$retention.time - df_evd$calibrated.retention.time
-    #retention.time und len darf nicht NA sein -> if is.na(all(PEP$retention...)) -> rename columns
+    if(all(c("retention.time","calibrated.retention.time") %in% colnames(df_evd))){
+      df_evd$retention.time.calibration <- df_evd$retention.time - df_evd$calibrated.retention.time
+    }
+     
+    if (!("match.time.difference" %in% colnames(df_evd))) {
+      df_evd[ ,"match.time.difference"] <- NA 
+    }
+    
+    if("proteins" %in% colnames(df_evd)){
+      # proteins ist zur Zeit ein Mix aus protein id, protein name und manchmal auch accession
+      # die einzelnen Proteine sind getrennt durch / => muss gegen ; ausgetauscht werden
+      df_evd$proteins = gsub(x = df_evd$proteins, pattern = "/",replacement = ";")
+      # extract group ids
+      df_evd$protein.group.ids = gsub(x = df_evd$proteins,pattern = "\\|[A-Z,_,0-9]*",replacement = "")
+    }
+    
+    #### certain columns cause errors when they are empty => remove them when empty -----------
+    if(all(is.na(df_evd$charge))) df_evd <- df_evd[ , !(names(df_evd) %in% c("charge"))]
+
     return(df_evd)
   }
 )
+
 
 ########################################################################################################################
 #'

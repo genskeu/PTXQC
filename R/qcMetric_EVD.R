@@ -40,7 +40,6 @@ Heatmap score [EVD: Contaminant <name>]: boolean score, i.e. 0% (fail) if the in
 ",
     workerFcn = function(.self, df_evd, df_pg, lst_contaminants)
     {
-      browser(text = "user_Cont")
       #lst_contaminants = yaml_contaminants
       ## completeness check
       ## PG is either missing, or has the correct data
@@ -207,7 +206,6 @@ Heatmap score [EVD: Pep Intensity (>%1.1f)]:
 ",
     workerFcn = function(.self, df_evd, thresh_intensity)
     {
-      browser(text = "pep_int")
       ## completeness check
       if(!(.self$checkInput(c("fc.raw.file", "intensity"),colnames(df_evd)))){return(NULL)}
       
@@ -218,7 +216,6 @@ Heatmap score [EVD: Pep Intensity (>%1.1f)]:
                           function(x) data.frame(med = log2(quantile(x$intensity, probs=0.5, na.rm = TRUE))))
       
       int_dev_pep = RSD((medians_pep$med))
-      browser()
       int_dev.s = pastet("INT RSD [%]", round(int_dev_pep, 3))
       lpl = boxplotCompare(data = df_evd[, c("fc.raw.file", "intensity", "contaminant")],
                            log2 = TRUE, 
@@ -388,7 +385,6 @@ Heatmap score [EVD: Prot Count (>%1.0f)]: Linear scoring from zero. Reaching or 
 ",
     workerFcn = function(.self, df_evd, thresh_protCount)
     {
-      browser(text = "prot_count")
       ## completeness check
       if(!(.self$checkInput(c("fc.raw.file", "protein.group.ids", "match.time.difference"),colnames(df_evd)))){return(NULL)}
       
@@ -593,7 +589,6 @@ Heatmap score [EVD: MBR Align]: fraction of 'green' vs. 'green+red' peptides.
 ",
     workerFcn = function(.self, df_evd, tolerance_matching, raw_file_mapping)
     {
-      browser("MBR")
       ## completeness check
       if(!(.self$checkInput(c("type", "calibrated.retention.time", "id", "raw.file", "modified.sequence", "charge"),colnames(df_evd)))){return(NULL)}
       
@@ -877,7 +872,6 @@ Heatmap score [EVD: ID rate over RT]: Scored using 'Uniform' scoring function, i
 ",
     workerFcn = function(.self, df_evd)
     {
-      browser()
       ## completeness check
       if(!(.self$checkInput(c("retention.time", "fc.raw.file"),colnames(df_evd)))){return(NULL)}
       
@@ -1051,7 +1045,7 @@ Heatmap score [EVD: Contaminants]: as fraction of summed intensity with 0 = samp
     workerFcn = function(.self, df_evd)
     {
       ## completeness check
-      if(!(.self$checkInput(c("intensity", "contaminant", "fc.raw.file"), colnames(df_evd)))){return(NULL)}
+      if(!(.self$checkInput(c("proteins","intensity", "contaminant", "fc.raw.file"), colnames(df_evd)))){return(NULL)}
       
       ##
       ## elaborate contaminant fraction per Raw.file (this is not possible from PG, since raw files could be merged)

@@ -472,7 +472,6 @@ createReport_mzTab = function(mzTab_file, yaml_obj = list(), report_filenames = 
     ## Even if MBR=off, this column always contains numbers (usually 0, or very small)
     ##
     
-    browser("MBR?")
     if (("retention.time.calibration" %in% colnames(df_evd)))
     {
       ## this should enable us to decide if MBR was used (we could also look up parameters.txt -- if present)
