@@ -155,9 +155,6 @@ mzTab$methods(
          )
        )
     
-    #remove columns with no sequence info
-    df_evd <- df_evd[which(!is.na(df_evd$modified.sequence)),]  
-    
     
     #### set datatypes for cloumns ------------------------
      
@@ -242,10 +239,19 @@ mzTab$methods(
       # extract group ids
       df_evd$protein.group.ids = gsub(x = df_evd$proteins,pattern = "\\|[A-Z,_,0-9]*",replacement = "")
     }
+     
+    # if only calibrated.retention.time is avialable use calibrated.retention.time as retention.time 
+    if(!"retention.time" %in% colnames(df_evd) & "calibrated.retention.time" %in% colnames(df_evd)){
+      df_evd$retention.time = df_evd$calibrated.retention.time
+    }
     
-    #### certain columns cause errors when they are empty => remove them when empty -----------
+    #### certain columns cause errors when they are empty because the selfinput check is passed and therefore the workfcn is called
+    # => remove them when empty -----------
     if(all(is.na(df_evd$charge))) df_evd <- df_evd[ , !(names(df_evd) %in% c("charge"))]
-
+    if(all(is.na(df_evd$modified.sequence))) df_evd <- df_evd[ , !(names(df_evd) %in% c("modified.sequence"))]
+    
+    
+    
     return(df_evd)
   }
 )

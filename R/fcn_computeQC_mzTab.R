@@ -458,6 +458,7 @@ createReport_mzTab = function(mzTab_file, yaml_obj = list(), report_filenames = 
     
     lst_qcMetrics[["qcMetric_EVD_PeptideCount"]]$setData(df_evd, param_EV_pepThresh)
     
+    browser()
     ####
     #### peak length (not supported in MQ 1.0.13)
     ####
